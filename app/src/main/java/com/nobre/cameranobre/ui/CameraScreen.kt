@@ -78,7 +78,9 @@ fun CameraScreen() {
 
     var isVideoMode by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
-    var isHighRes50M by remember { mutableStateOf(false) }
+    
+    // Resoluções: 0 = 12 MP, 1 = 50 MP, 2 = 200 MP
+    var resolutionMode by remember { mutableIntStateOf(0) }
     var isAspectRatio43 by remember { mutableStateOf(true) }
     var currentZoom by remember { mutableFloatStateOf(1.0f) }
     var showZoomSlider by remember { mutableStateOf(false) }
@@ -95,113 +97,19 @@ fun CameraScreen() {
         locationHelper.updateLocation()
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // 1. Barra Superior com statusBarsPadding (Zero conflito com notch e relógio)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Selo do Imóvel
-            Row(
-                modifier = Modifier
-                    .background(Color(0xFF222222), RoundedCornerShape(20.dp))
-                    .border(1.dp, Color(0xFFFFD4AF37), RoundedCornerShape(20.dp))
-                    .clickable { showPropertyDialog = true }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = Color(0xFFFFD4AF37),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = activeProperty,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-
-            // Controles de Flash, Resolução e Proporção
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Flash Toggle
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(Color(0xFF222222), CircleShape)
-                        .clickable {
-                            flashState = when (flashState) {
-                                ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
-                                ImageCapture.FLASH_MODE_ON -> ImageCapture.FLASH_MODE_OFF
-                                else -> ImageCapture.FLASH_MODE_AUTO
-                            }
-                            cameraManager.setFlashMode(flashState)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val (icon, tint) = when (flashState) {
-                        ImageCapture.FLASH_MODE_ON -> Icons.Default.FlashOn to Color(0xFFFFD4AF37)
-                        ImageCapture.FLASH_MODE_AUTO -> Icons.Default.FlashAuto to Color.White
-                        else -> Icons.Default.FlashOff to Color.Gray
-                    }
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Resolução 12 MP / 50 MP
-                Text(
-                    text = if (isHighRes50M) "50 MP" else "12 MP",
-                    color = if (isHighRes50M) Color(0xFFFFD4AF37) else Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .background(Color(0xFF222222), RoundedCornerShape(12.dp))
-                        .border(1.dp, if (isHighRes50M) Color(0xFFFFD4AF37) else Color.DarkGray, RoundedCornerShape(12.dp))
-                        .clickable {
-                            isHighRes50M = !isHighRes50M
-                            cameraManager.setResolution(isHighRes50M)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Proporção 4:3 / 9:16
-                Text(
-                    text = if (isAspectRatio43) "4:3" else "9:16",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .background(Color(0xFF222222), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-                        .clickable {
-                            isAspectRatio43 = !isAspectRatio43
-                            cameraManager.setAspectRatio(isAspectRatio43)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                )
-            }
-        }
-
-        // 2. Visor da Câmera (Enquadramento Exato SEM cortes)
+        // 1. Visor da Câmera Centralizado (Enquadramento 4:3 ou 9:16)
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxSize()
+                .padding(
+                    top = if (isAspectRatio43) 70.dp else 0.dp,
+                    bottom = if (isAspectRatio43) 175.dp else 0.dp
+                ),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -239,11 +147,116 @@ fun CameraScreen() {
             }
         }
 
-        // 3. Deck Inferior Samsung (Zero sobreposição)
+        // 2. Barra Superior ANCORADA no topo (Nunca é empurrada para fora da tela)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .background(Color.Black.copy(alpha = 0.60f))
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Selo do Imóvel / Álbum
+            Row(
+                modifier = Modifier
+                    .background(Color(0xFF222222), RoundedCornerShape(20.dp))
+                    .border(1.dp, Color(0xFFFFD4AF37), RoundedCornerShape(20.dp))
+                    .clickable { showPropertyDialog = true }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = Color(0xFFFFD4AF37),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = activeProperty,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+
+            // Controles de Flash, Resolução (12M/50M/200M) e Proporção (4:3/9:16)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Flash Toggle
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFF222222), CircleShape)
+                        .clickable {
+                            flashState = when (flashState) {
+                                ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
+                                ImageCapture.FLASH_MODE_ON -> ImageCapture.FLASH_MODE_OFF
+                                else -> ImageCapture.FLASH_MODE_AUTO
+                            }
+                            cameraManager.setFlashMode(flashState)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val (icon, tint) = when (flashState) {
+                        ImageCapture.FLASH_MODE_ON -> Icons.Default.FlashOn to Color(0xFFFFD4AF37)
+                        ImageCapture.FLASH_MODE_AUTO -> Icons.Default.FlashAuto to Color.White
+                        else -> Icons.Default.FlashOff to Color.Gray
+                    }
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Resolução: alterna entre 12 MP -> 50 MP -> 200 MP
+                val resolutionLabel = when (resolutionMode) {
+                    2 -> "200 MP"
+                    1 -> "50 MP"
+                    else -> "12 MP"
+                }
+                Text(
+                    text = resolutionLabel,
+                    color = if (resolutionMode > 0) Color(0xFFFFD4AF37) else Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .background(Color(0xFF222222), RoundedCornerShape(12.dp))
+                        .border(1.dp, if (resolutionMode > 0) Color(0xFFFFD4AF37) else Color.DarkGray, RoundedCornerShape(12.dp))
+                        .clickable {
+                            resolutionMode = (resolutionMode + 1) % 3
+                            cameraManager.setResolutionMode(resolutionMode)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Proporção: alterna entre 4:3 e 9:16
+                Text(
+                    text = if (isAspectRatio43) "4:3" else "9:16",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .background(Color(0xFF222222), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+                        .clickable {
+                            isAspectRatio43 = !isAspectRatio43
+                            cameraManager.setAspectRatio(isAspectRatio43)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        // 3. Deck Inferior ANCORADO na base (Com espaçamento perfeito estilo Samsung)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.Black)
+                .align(Alignment.BottomCenter)
+                .background(Color.Black.copy(alpha = 0.85f))
                 .navigationBarsPadding()
                 .padding(bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -348,7 +361,7 @@ fun CameraScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Atalho da Galeria
+                // Atalho da Galeria Samsung
                 Box(
                     modifier = Modifier
                         .size(52.dp)
@@ -430,7 +443,7 @@ fun CameraScreen() {
                     }
                 }
 
-                // Espaçador para equilíbrio estético
+                // Espaçador para manter equilíbrio simétrico
                 Box(modifier = Modifier.size(52.dp))
             }
         }

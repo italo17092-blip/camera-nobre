@@ -2,13 +2,10 @@ package com.nobre.cameranobre.camera
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.hardware.camera2.CameraCharacteristics
 import android.net.Uri
 import android.util.Size
-import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraControl
-import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -49,15 +46,15 @@ class CameraManager(
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
 
-    var isHighRes50M: Boolean = false
+    // Resoluções: 0 = 12 MP (Padrão), 1 = 50 MP, 2 = 200 MP (Sensor ISOCELL HP2 S25 Ultra)
+    var resolutionMode: Int = 0
         private set
+
     var isAspectRatio43: Boolean = true
         private set
     var currentZoomRatio: Float = 1.0f
         private set
     var flashMode: Int = ImageCapture.FLASH_MODE_AUTO
-        private set
-    var isUltraWideLens: Boolean = false
         private set
 
     private var previewViewRef: PreviewView? = null
@@ -74,9 +71,9 @@ class CameraManager(
         }, ContextCompat.getMainExecutor(context))
     }
 
-    fun setResolution(highRes: Boolean) {
-        if (isHighRes50M != highRes) {
-            isHighRes50M = highRes
+    fun setResolutionMode(mode: Int) {
+        if (resolutionMode != mode) {
+            resolutionMode = mode
             bindCameraUseCases()
         }
     }
@@ -94,45 +91,15 @@ class CameraManager(
     }
 
     /**
-     * Aplica o zoom e seleciona a lente física apropriada (Ultra-wide 0.6x vs Principal 1x-10x)
+     * Aplica o zoom suave de 0.6x a 10.0x de forma contínua no sensor lógico
+     * SEM recriar a câmera (eliminando a tela preta e o erro de gravação de vídeo).
      */
     fun setZoom(zoom: Float) {
         currentZoomRatio = zoom
-        val shouldBeUltraWide = zoom <= 0.7f
-
-        if (shouldBeUltraWide != isUltraWideLens) {
-            isUltraWideLens = shouldBeUltraWide
-            bindCameraUseCases()
-        } else {
-            // Ajuste suave de zoom no sensor ativo
-            camera?.cameraControl?.setZoomRatio(zoom)
+        camera?.cameraInfo?.zoomState?.value?.let { state ->
+            val targetZoom = zoom.coerceIn(state.minZoomRatio, state.maxZoomRatio)
+            camera?.cameraControl?.setZoomRatio(targetZoom)
         }
-    }
-
-    private fun getBestCameraSelector(): CameraSelector {
-        val provider = cameraProvider ?: return CameraSelector.DEFAULT_BACK_CAMERA
-        val availableInfos = provider.availableCameraInfos
-
-        if (isUltraWideLens) {
-            // Procura a lente ultra-wide física (menor distância focal entre as traseiras)
-            val ultraWideInfo = availableInfos.filter { info ->
-                info.lensFacing == CameraSelector.LENS_FACING_BACK
-            }.minByOrNull { info ->
-                try {
-                    val c2 = Camera2CameraInfo.from(info)
-                    val focalLengths = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                    focalLengths?.firstOrNull() ?: 10f
-                } catch (e: Exception) {
-                    10f
-                }
-            }
-
-            if (ultraWideInfo != null) {
-                return ultraWideInfo.cameraSelector
-            }
-        }
-
-        return CameraSelector.DEFAULT_BACK_CAMERA
     }
 
     private fun bindCameraUseCases() {
@@ -140,10 +107,14 @@ class CameraManager(
         val previewView = previewViewRef ?: return
         provider.unbindAll()
 
-        val targetSize = if (isHighRes50M) {
-            if (isAspectRatio43) Size(8160, 6120) else Size(8160, 4590)
-        } else {
-            if (isAspectRatio43) Size(4000, 3000) else Size(3840, 2160)
+        // Seleção de resolução com base no sensor do S25 Ultra:
+        // 0: 12 MP (4000x3000) - Rápido, ideal para interiores e luminosidade
+        // 1: 50 MP (8160x6120) - Alto detalhe arquitetônico
+        // 2: 200 MP (16320x12240) - Máxima resolução do sensor principal
+        val targetSize = when (resolutionMode) {
+            2 -> if (isAspectRatio43) Size(16320, 12240) else Size(16320, 9180)
+            1 -> if (isAspectRatio43) Size(8160, 6120) else Size(8160, 4590)
+            else -> if (isAspectRatio43) Size(4000, 3000) else Size(3840, 2160)
         }
 
         val resolutionSelector = ResolutionSelector.Builder()
@@ -173,7 +144,8 @@ class CameraManager(
             .build()
         videoCapture = VideoCapture.withOutput(recorder)
 
-        val cameraSelector = getBestCameraSelector()
+        // Câmera Traseira Lógica (que gerencia ultra-wide, 1x e teleobjetivas nativamente)
+        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
         try {
             camera = provider.bindToLifecycle(
@@ -183,26 +155,14 @@ class CameraManager(
                 imageCapture,
                 videoCapture
             )
-            
-            // Aplica zoom se a câmera suportar a proporção solicitada
+
+            // Restaura o zoom atual sem piscar
             camera?.cameraInfo?.zoomState?.value?.let { state ->
                 val targetZoom = currentZoomRatio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
                 camera?.cameraControl?.setZoomRatio(targetZoom)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback para câmera padrão
-            try {
-                camera = provider.bindToLifecycle(
-                    lifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                    imageCapture,
-                    videoCapture
-                )
-            } catch (e2: Exception) {
-                e2.printStackTrace()
-            }
         }
     }
 
@@ -223,7 +183,7 @@ class CameraManager(
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     try {
-                        // 1. Processamento e correção da orientação (NUNCA fica de lado)
+                        // 1. Processamento e correção da orientação (SEMPRE em pé)
                         RealEstateImageProcessor.processImage(tempRawFile, tempProcessedFile)
 
                         // 2. Injeção de GPS no EXIF
@@ -280,7 +240,7 @@ class CameraManager(
     ) {
         val vc = videoCapture ?: return
         val contentValues = storageHelper.createVideoContentValues()
-        val mediaStoreOptions = androidx.camera.video.MediaStoreOutputOptions.Builder(
+        val mediaStoreOptions = MediaStoreOutputOptions.Builder(
             context.contentResolver,
             android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         ).setContentValues(contentValues).build()
@@ -295,7 +255,8 @@ class CameraManager(
                         if (!event.hasError()) {
                             onRecordingFinished(event.outputResults.outputUri)
                         } else {
-                            onError(Exception(event.cause))
+                            val errorMsg = event.cause?.message ?: "Gravação finalizada"
+                            onError(Exception(errorMsg))
                         }
                     }
                 }

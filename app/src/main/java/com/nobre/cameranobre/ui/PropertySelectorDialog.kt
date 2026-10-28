@@ -73,10 +73,11 @@ fun PropertySelectorDialog(
                     modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
                 )
 
+                // Placeholder limpo solicitado pelo usuário
                 OutlinedTextField(
                     value = newPropertyName,
                     onValueChange = { newPropertyName = it },
-                    placeholder = { Text("Ex: Alphaville I B29 - Clóvis", color = Color.Gray, fontSize = 14.sp) },
+                    placeholder = { Text("Nome do Álbum", color = Color.Gray, fontSize = 14.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
@@ -108,7 +109,7 @@ fun PropertySelectorDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Imóveis Recentes",
+                    text = "Álbuns Recentes",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFFFD4AF37)
@@ -119,8 +120,8 @@ fun PropertySelectorDialog(
                 LazyColumn(modifier = Modifier.height(180.dp)) {
                     item {
                         PropertyItemRow(
-                            name = "Câmera Livre (Avulso)",
-                            isSelected = currentProperty == "Câmera Livre",
+                            name = "Câmera Livre (Geral)",
+                            isSelected = currentProperty == "Câmera Livre" || currentProperty == "Câmera Livre (Geral)",
                             onClick = {
                                 onSelectProperty("Câmera Livre")
                                 onDismiss()
