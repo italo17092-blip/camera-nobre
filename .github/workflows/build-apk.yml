@@ -1,4 +1,4 @@
-name: Compilar APK Câmera Nobr
+name: Compilar APK Câmera Nobre
 
 on:
   push:
