@@ -1,0 +1,39 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Anel Externo Dourado da Lente -->
+    <path
+        android:strokeColor="#FFD4AF37"
+        android:strokeWidth="2.5"
+        android:pathData="M54,18 A36,36 0 1,0 54,90 A36,36 0 1,0 54,18 Z"/>
+    
+    <!-- Anel Interno Fino -->
+    <path
+        android:strokeColor="#80D4AF37"
+        android:strokeWidth="1.2"
+        android:pathData="M54,24 A30,30 0 1,0 54,84 A30,30 0 1,0 54,24 Z"/>
+    
+    <!-- Monograma Nobre (N Arquitetônico e Imobiliário) -->
+    <!-- Coluna Esquerda do N -->
+    <path
+        android:fillColor="#FFD4AF37"
+        android:pathData="M38,34 L45,34 L45,74 L38,74 Z"/>
+    
+    <!-- Coluna Direita do N -->
+    <path
+        android:fillColor="#FFD4AF37"
+        android:pathData="M63,34 L70,34 L70,74 L63,74 Z"/>
+    
+    <!-- Diagonal do N com Geometria Limpa -->
+    <path
+        android:fillColor="#FFD4AF37"
+        android:pathData="M44,34 L52,34 L64,68 L56,68 Z"/>
+
+    <!-- Ponto Central da Lente (Obturador) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,54 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0"/>
+</vector>
